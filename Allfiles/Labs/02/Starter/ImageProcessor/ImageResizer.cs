@@ -1,24 +1,23 @@
 using System.IO;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Processing;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 
 namespace ImageProcessor
 {
     public static class ImageResizer
     {
         [FunctionName("ImageResizer")]
-        public static IActionResult Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req)
+        public static FileInfo Run([ActivityTrigger] IDurableActivityContext context)
         {
+            var fileInfo = context.GetInput<FileInfo>();
             byte[] result;
 
-            using (MemoryStream ms = new MemoryStream())
+            using (var ms = new MemoryStream())
             {
-                using (var image = Image.Load(req.Body, out IImageFormat format))
+                using (var image = Image.Load(fileInfo.Content, out IImageFormat format))
                 {
                     image.Mutate(x => x.Resize(256, 256));
                     image.Save(ms, format);
@@ -26,10 +25,10 @@ namespace ImageProcessor
                 result = ms.ToArray();
             }
 
-            var fileName = Utils.GetFileName(req) ?? "image";
-            return new FileContentResult(result, "image/jpeg")
+            return new FileInfo
             {
-                FileDownloadName = $"{Path.GetFileNameWithoutExtension(fileName)}_small.jpeg"
+                Name = $"{Path.GetFileNameWithoutExtension(fileInfo.Name)}_small{Path.GetExtension(fileInfo.Name)}",
+                Content = result
             };
         }
     }
