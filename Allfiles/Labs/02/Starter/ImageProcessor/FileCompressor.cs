@@ -14,20 +14,18 @@ namespace ImageProcessor
             byte[] result;
 
             using (var input = new MemoryStream(fileInfo.Content))
-            {                
-                using (var output = new MemoryStream())
+            {
+                using var output = new MemoryStream();
+                using (var zip = new ZipArchive(output, ZipArchiveMode.Create, true))
                 {
-                    using (var zip = new ZipArchive(output, ZipArchiveMode.Create, true))
+                    var zipItem = zip.CreateEntry(fileInfo.Name);
+                    using (var entryStream = zipItem.Open())
                     {
-                        var zipItem = zip.CreateEntry(fileInfo.Name);
-                        using (var entryStream = zipItem.Open())
-                        {
-                            input.CopyTo(entryStream);
-                        }
+                        input.CopyTo(entryStream);
                     }
-
-                    result = output.ToArray();
                 }
+
+                result = output.ToArray();
             }
 
             return new FileInfo

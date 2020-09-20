@@ -1,9 +1,8 @@
-using System.Net.Http;
+using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
-using Microsoft.Azure.WebJobs.Extensions.Http;
 
 namespace ImageProcessor
 {
@@ -12,7 +11,7 @@ namespace ImageProcessor
         [FunctionName("ResizeAndCompress")]
         public static async Task RunOrchestrator(
             [OrchestrationTrigger] IDurableOrchestrationContext context,
-            [Blob("small-images", System.IO.FileAccess.Write, Connection = "AzureWebJobsStorage")] CloudBlobContainer outputContainer)
+            [Blob("small-images", FileAccess.Write, Connection = "AzureWebJobsStorage")] CloudBlobContainer outputContainer)
         {
             var fileInfo = context.GetInput<FileInfo>();
             var resized = await context.CallActivityAsync<FileInfo>("ImageResizer", fileInfo);
@@ -23,18 +22,18 @@ namespace ImageProcessor
         }
 
         [FunctionName("ResizeAndCompress_HttpStart")]
-        public static async Task<HttpResponseMessage> HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequestMessage req,
+        public static async Task HttpStart(
+            [BlobTrigger("images/{fileName}", Connection = "AzureWebJobsStorage")] byte[] image, 
+            string fileName,
             [DurableClient] IDurableOrchestrationClient starter)
         {
             var fileInfo = new FileInfo
             {
-                Name = Utils.GetFileName(req.Content.Headers),
-                Content = await req.Content.ReadAsByteArrayAsync()
+                Name = fileName,
+                Content = image
             };
-            string instanceId = await starter.StartNewAsync("ResizeAndCompress", "", fileInfo);
 
-            return starter.CreateCheckStatusResponse(req, instanceId);
+            await starter.StartNewAsync("ResizeAndCompress", "", fileInfo);
         }
     }
 }
